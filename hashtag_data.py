@@ -283,6 +283,7 @@ class HashtagData:
 			else:
 				new_hashtag = CLOSED_TAG
 			text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + new_hashtag, position)
+			utils.set_post_content(self.post_data, text, entities)
 			return text
 
 	def replace_old_scheduled_tag(self, text: str, entities: List[telebot.types.MessageEntity], entity_index: int):
@@ -293,6 +294,7 @@ class HashtagData:
 			text, entities = utils.cut_entity_from_post(text, entities, entity_index)
 			new_hashtag = SCHEDULED_TAG
 			text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + new_hashtag, position)
+			utils.set_post_content(self.post_data, text, entities)
 			return text
 
 	def replace_old_priority_tag(self, text: str, entities: List[telebot.types.MessageEntity], entity_index: int):
@@ -303,6 +305,7 @@ class HashtagData:
 			text, entities = utils.cut_entity_from_post(text, entities, entity_index)
 			new_hashtag = PRIORITY_TAG + tag[len(old_priority_tag):]
 			text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + new_hashtag, position)
+			utils.set_post_content(self.post_data, text, entities)
 			return text
 
 	def get_default_subchannel_priority(self):
