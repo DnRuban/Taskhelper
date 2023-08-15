@@ -1,4 +1,5 @@
 import telebot
+from telebot.apihelper import ApiTelegramException
 
 import daily_reminder
 import db_utils
@@ -31,39 +32,38 @@ def save_comment(bot: telebot.TeleBot, msg_data: telebot.types.Message):
 		return
 	main_message_id = db_utils.get_main_from_discussion_message(top_discussion_message_id, main_channel_id)
 
-	if msg_data.text.startswith(_NEXT_ACTION_COMMENT_PREFIX):
-		next_action_text = msg_data.text[len(_NEXT_ACTION_COMMENT_PREFIX):]
-		db_utils.insert_or_update_current_next_action(main_message_id, main_channel_id, next_action_text)
-
 	if main_message_id:
+		if msg_data.text.startswith(_NEXT_ACTION_COMMENT_PREFIX):
+			next_action_text = msg_data.text[len(_NEXT_ACTION_COMMENT_PREFIX):]
+			update_next_action(bot, main_message_id, main_channel_id, next_action_text)
 		interval_updating_utils.update_older_message(bot, main_channel_id, main_message_id)
 
-	daily_reminder.update_user_last_interaction(main_message_id, main_channel_id, msg_data)
-	daily_reminder.set_ticket_update_time(main_message_id, main_channel_id)
+		daily_reminder.update_user_last_interaction(main_message_id, main_channel_id, msg_data)
+		daily_reminder.set_ticket_update_time(main_message_id, main_channel_id)
 
 
-def update_comment(bot: telebot.TeleBot, post_data: telebot.types.Message, hashtag_data: HashtagData):
-	main_channel_id = post_data.chat.id
-	main_message_id = post_data.message_id
+def update_next_action(bot: telebot.TeleBot, main_message_id: int, main_channel_id: int, next_action: str):
+	try:
+		post_data = utils.get_main_message_content_by_id(bot, main_channel_id, main_message_id)
+	except ApiTelegramException:
+		utils.delete_main_message(bot, main_channel_id, main_message_id)
+		return
 
 	text, entities = utils.get_post_content(post_data)
+	if _NEXT_ACTION_TEXT_PREFIX in text:
+		next_action_prefix_index = text.find(_NEXT_ACTION_TEXT_PREFIX)
+		text = text[:next_action_prefix_index]
 
-	next_action = db_utils.get_next_action_text(main_message_id, main_channel_id)
+	next_action_with_prefix = _NEXT_ACTION_TEXT_PREFIX + next_action
+	text += next_action_with_prefix
+	utils.set_post_content(post_data, text, entities)
 
-	if next_action:
-		previous_text, current_comment_text = next_action
-		current_comment_with_prefix = _NEXT_ACTION_TEXT_PREFIX + current_comment_text
-		if text.endswith(current_comment_with_prefix):
-			return
+	hashtag_data = HashtagData(post_data, main_channel_id)
+	keyboard_markup = forwarding_utils.generate_control_buttons(hashtag_data, post_data)
 
-		if previous_text and previous_text in text:
-			previous_text_index = text.rfind(previous_text)
-			text = text[:previous_text_index] + text[previous_text_index + len(previous_text):]  # remove previous comment
+	utils.edit_message_content(bot, post_data, chat_id=main_channel_id,
+	                           message_id=main_message_id, reply_markup=keyboard_markup)
 
-		text += current_comment_with_prefix
-
-		keyboard_markup = forwarding_utils.generate_control_buttons(hashtag_data, post_data)
-
-		utils.set_post_content(post_data, text, entities)
-		utils.edit_message_content(bot, post_data, reply_markup=keyboard_markup)
-		db_utils.update_previous_next_action(main_message_id, main_channel_id, current_comment_with_prefix)
+	# for compatibility with older versions
+	db_utils.insert_or_update_current_next_action(main_message_id, main_channel_id, next_action)
+	db_utils.update_previous_next_action(main_message_id, main_channel_id, next_action_with_prefix)
