@@ -30,6 +30,7 @@ class CB_TYPES:
 	SAVE_SELECTED_USERS = "SVU"
 	SAVE_REMIND_SETTINGS = "SVR"
 	NOP = "NOP"  # No operation
+	SEND_CHANNEL_SETTINGS = "STT"
 
 class SETTING_TYPES:
 	ASSIGNED = "assigned"
@@ -350,6 +351,8 @@ def handle_callback(bot: telebot.TeleBot, call: CallbackQuery):
 		bot.answer_callback_query(call.id)
 	elif callback_type in _TOGGLE_CALLBACKS:
 		toggle_button(bot, call, callback_type, other_data)
+	elif callback_type == CB_TYPES.SEND_CHANNEL_SETTINGS:
+		send_settings_keyboard(bot, call.message)
 
 
 def is_button_checked(buttons: List[InlineKeyboardButton], target_cb_type: str):

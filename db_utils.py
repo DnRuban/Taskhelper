@@ -276,6 +276,15 @@ def get_oldest_copied_message(copied_channel_id):
 
 
 @db_thread_lock
+def get_newest_copied_message(copied_channel_id):
+	sql = "SELECT max(copied_message_id) FROM copied_messages WHERE copied_channel_id=(?)"
+	CURSOR.execute(sql, (copied_channel_id,))
+	result = CURSOR.fetchone()
+	if result:
+		return result[0]
+
+
+@db_thread_lock
 def update_copied_message_id(copied_message_id, copied_channel_id, updated_message_id):
 	sql = "UPDATE copied_messages SET copied_message_id=(?) WHERE copied_message_id=(?) AND copied_channel_id=(?)"
 	CURSOR.execute(sql, (updated_message_id, copied_message_id, copied_channel_id,))
