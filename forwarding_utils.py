@@ -640,6 +640,7 @@ def rearrange_hashtags(bot: telebot.TeleBot, post_data: telebot.types.Message, h
 	hashtag_data.update_hashtags()
 	hashtags = hashtag_data.get_hashtags_for_insertion()
 	post_data = hashtag_utils.insert_hashtags(post_data, hashtags)
+	post_data = hashtag_data.remove_duplicates(post_data)
 
 	if original_post_data and utils.is_post_data_equal(post_data, original_post_data):
 		return

@@ -182,7 +182,7 @@ class HashtagData:
 				continue
 			entity = entities[entity_index]
 			if entity.type == "hashtag":
-				tag = text[entity.offset + 1:entity.offset + entity.length]
+				tag = self.get_tag_from_entity(entity, text)
 				if config_utils.HASHTAGS_BEFORE_UPDATE and self.check_old_scheduled_tag(tag):
 					scheduled_tag_index = entity_index
 					continue
@@ -280,6 +280,39 @@ class HashtagData:
 			if db_utils.is_user_tag_exists(self.main_channel_id, tag):
 				mentioned_users.append(tag)
 		return mentioned_users
+
+	def is_service_hashtag(self, tag: str):
+		is_status_tag = tag == OPENED_TAG or tag == CLOSED_TAG
+		is_scheduled_tag = tag.startswith(SCHEDULED_TAG + " ")
+		is_user_tag = db_utils.is_user_tag_exists(self.post_data.chat.id, tag)
+		is_priority_tag = tag.startswith(PRIORITY_TAG) and tag[len(PRIORITY_TAG):] in POSSIBLE_PRIORITIES
+		return is_status_tag or is_scheduled_tag or is_user_tag or is_priority_tag
+
+	def remove_duplicates(self, post_data: telebot.types.Message):
+		text, entities = utils.get_post_content(post_data)
+		entity_tags = [self.get_tag_from_entity(e, text) for e in entities]
+		entities_to_ignore = self.get_entities_to_ignore(text, entities)
+
+		checked_entities = []
+
+		entities_to_remove = []
+		for i in range(len(entities)):
+			entity = entities[i]
+			tag = entity_tags[i]
+			if i in entities_to_ignore or entity.type != "hashtag" or not self.is_service_hashtag(tag):
+				continue
+
+			if tag not in checked_entities:
+				checked_entities.append(tag)
+			else:
+				entities_to_remove.append(i)
+
+		entities_to_remove.sort(reverse=True)
+		for entity_index in entities_to_remove:
+			text, entities = utils.cut_entity_from_post(text, entities, entity_index)
+
+		utils.set_post_content(post_data, text, entities)
+		return post_data
 
 	def get_post_data_without_hashtags(self):
 		text, entities = utils.get_post_content(self.post_data)
