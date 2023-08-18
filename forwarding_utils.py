@@ -577,6 +577,9 @@ def toggle_cc_button_event(bot: telebot.TeleBot, call: telebot.types.CallbackQue
 	post_data = hashtag_data.get_post_data_without_hashtags()
 
 	if selected_user in hashtag_data.get_followed_users():
+		if selected_user in hashtag_data.mentioned_users:
+			bot.answer_callback_query(call.id, "Can't remove this user because he's mentioned in the text")
+			return
 		hashtag_data.remove_from_followers(selected_user)
 		comment_text = f"{call.from_user.first_name} removed {{USER}} from ticket's followers."
 	else:

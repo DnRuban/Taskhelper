@@ -35,6 +35,10 @@ class HashtagData:
 		self.user_tags = user_tags
 		self.priority_tag = priority_tag
 
+		self.mentioned_users = self.find_mentioned_users(post_data)
+		for user_tag in self.mentioned_users:
+			if user_tag not in self.user_tags:
+				self.user_tags.append(user_tag)
 		self.other_hashtags = self.extract_other_hashtags(post_data)
 
 	def is_status_missing(self):
@@ -135,6 +139,46 @@ class HashtagData:
 			return True
 		return False
 
+	def get_entities_to_ignore(self, text: str, entities: List[telebot.types.MessageEntity]):
+		front_index = 0
+		current_offset = 0
+		while front_index < (len(entities)):
+			next_entity = entities[front_index]
+
+			if next_entity.type == "hashtag":
+				self.update_scheduled_tag(text, entities, front_index)
+
+			text_in_between = text[current_offset:next_entity.offset]
+			spaces_only = all([i == ' ' for i in text_in_between])
+
+			if not spaces_only:
+				break
+
+			if next_entity.type == "text_link":
+				post_link = str(self.post_data.message_id) + post_link_utils.LINK_ENDING
+				if text[next_entity.offset:].startswith(post_link):
+					current_offset += next_entity.length + len(post_link_utils.LINK_ENDING)
+					front_index += 1
+					continue
+
+			current_offset = next_entity.offset + next_entity.length
+			front_index += 1
+
+		back_index = len(entities) - 1
+		current_offset = 0
+		while back_index > 0:
+			previous_entity = entities[back_index]
+			text_in_between = text[previous_entity.offset + previous_entity.length:len(text)-current_offset]
+			spaces_only = all([i == ' ' for i in text_in_between])
+			if not spaces_only:
+				break
+			current_offset = len(text) - previous_entity.offset
+			back_index -= 1
+
+		if back_index < (front_index - 2):
+			back_index = front_index
+		return range(front_index, back_index + 1)
+
 	def find_hashtag_indexes(self, text: str, entities: List[telebot.types.MessageEntity], main_channel_id: int):
 		scheduled_tag_index = None
 		status_tag_index = None
@@ -144,7 +188,11 @@ class HashtagData:
 		if entities is None:
 			return None, None, [], None
 
+		entities_to_ignore = self.get_entities_to_ignore(text, entities)
+
 		for entity_index in reversed(range(len(entities))):
+			if entity_index in entities_to_ignore:
+				continue
 			entity = entities[entity_index]
 			if entity.type == "hashtag":
 				tag = text[entity.offset + 1:entity.offset + entity.length]
@@ -230,6 +278,22 @@ class HashtagData:
 			hashtags.append("#" + entity_text)
 		return hashtags
 
+	def find_mentioned_users(self, post_data: telebot.types.Message):
+		text, entities = utils.get_post_content(post_data)
+		mentioned_users = []
+		scheduled_tag_index, status_tag_index, user_tag_indexes, priority_tag_index = self.hashtag_indexes
+		ignored_indexes = [scheduled_tag_index, status_tag_index, priority_tag_index]
+		ignored_indexes += user_tag_indexes
+
+		for entity_index in range(len(entities)):
+			if entity_index in ignored_indexes or entities[entity_index].type != "hashtag":
+				continue
+
+			tag = self.get_tag_from_entity(entities[entity_index], text)
+			if db_utils.is_user_tag_exists(self.main_channel_id, tag):
+				mentioned_users.append(tag)
+		return mentioned_users
+
 	def get_post_data_without_hashtags(self):
 		text, entities = utils.get_post_content(self.post_data)
 		scheduled_tag_index, status_tag_index, user_tag_indexes, priority_tag_index = self.hashtag_indexes
@@ -250,9 +314,9 @@ class HashtagData:
 		return text[entity.offset + 1:entity.offset + entity.length]
 
 	def update_scheduled_tag(self, text: str, entities: List[telebot.types.MessageEntity], tag_index: int):
-		scheduled_tag_offset = entities[tag_index].offset
-		if text[scheduled_tag_offset + 1:].startswith(SCHEDULED_TAG):
-			text_after_tag = text[scheduled_tag_offset + 1 + len(SCHEDULED_TAG) + 1:]
+		scheduled_tag = entities[tag_index]
+		if text[scheduled_tag.offset + 1:].startswith(SCHEDULED_TAG):
+			text_after_tag = text[scheduled_tag.offset + scheduled_tag.length + 1:]
 			result = re.search(self.SCHEDULED_DATE_FORMAT_REGEX, text_after_tag)
 			if result is None:
 				return False
