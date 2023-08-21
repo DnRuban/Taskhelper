@@ -1,7 +1,9 @@
+import datetime
 import re
 import typing
 from typing import List
 
+import pytz
 import telebot
 from telebot.types import MessageEntity
 
@@ -21,7 +23,8 @@ POSSIBLE_PRIORITIES = ["1", "2", "3"]
 
 
 class HashtagData:
-	SCHEDULED_DATE_FORMAT_REGEX = "^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}"
+	SCHEDULED_DATE_FORMAT_REGEX = "^\d{4}-\d{1,2}-\d{1,2}"
+	SCHEDULED_TIME_FORMAT_REGEX = "^\d{1,2}:\d{1,2}"
 
 	def __init__(self, post_data: telebot.types.Message, main_channel_id: int, insert_default_tags: bool = False):
 		self.hashtag_indexes = []
@@ -419,12 +422,30 @@ class HashtagData:
 
 	def update_scheduled_tag(self, text: str, entities: List[MessageEntity], tag_index: int):
 		scheduled_tag = entities[tag_index]
+		scheduled_tag_text = text[scheduled_tag.offset:scheduled_tag.offset + scheduled_tag.length]
+
+		scheduled_parts = scheduled_tag_text.split(" ")
+		if len(scheduled_parts) == 3:
+			tag, date, time = scheduled_parts
+			date_match = re.search(self.SCHEDULED_DATE_FORMAT_REGEX, date)
+			time_match = re.search(self.SCHEDULED_TIME_FORMAT_REGEX, time)
+			if date_match and time_match:
+				return True
+
 		if text[scheduled_tag.offset + 1:].startswith(SCHEDULED_TAG):
+			scheduled_tag.length = len(SCHEDULED_TAG) + 1
 			text_after_tag = text[scheduled_tag.offset + scheduled_tag.length + 1:]
-			result = re.search(self.SCHEDULED_DATE_FORMAT_REGEX, text_after_tag)
-			if result is None:
+			date_match = re.search(self.SCHEDULED_DATE_FORMAT_REGEX, text_after_tag)
+			if date_match is None:
 				return False
-			entities[tag_index].length += 1 + result.end()
+			entities[tag_index].length += date_match.end() + 1
+
+			text_after_date = text_after_tag[date_match.end() + 1:]
+			time_match = re.search(self.SCHEDULED_TIME_FORMAT_REGEX, text_after_date)
+			if time_match is None:
+				return False
+			entities[tag_index].length += time_match.end() + 1
+
 			return True
 		return False
 
@@ -524,3 +545,32 @@ class HashtagData:
 
 			highest_priority = min(priorities)
 			self.priority_tag = f"{PRIORITY_TAG}{highest_priority}"
+
+def insert_hashtags(post_data: telebot.types.Message, hashtags: List[str]):
+	text, entities = utils.get_post_content(post_data)
+
+	hashtags_start_position = 0
+	if entities and entities[0].type == "text_link" and entities[0].offset == 0:
+		hashtags_start_position += entities[0].length + len(post_link_utils.LINK_ENDING)
+		if hashtags_start_position > len(text):
+			text += " "
+
+	for hashtag in hashtags[::-1]:
+		if hashtag is None:
+			continue
+		if hashtag.startswith(SCHEDULED_TAG):
+			main_channel_id = post_data.chat.id
+			main_message_id = post_data.message_id
+			send_time = db_utils.get_scheduled_message_send_time(main_message_id, main_channel_id)
+			if send_time:
+				timezone = pytz.timezone(config_utils.TIMEZONE_NAME)
+				dt = datetime.datetime.fromtimestamp(send_time, tz=timezone)
+				date_str = dt.strftime("%Y-%m-%d %H:%M")
+				if hashtag[len(SCHEDULED_TAG) + 1:] != date_str:
+					hashtag = f"{SCHEDULED_TAG} {date_str}"
+
+		text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + hashtag, hashtags_start_position)
+
+	utils.set_post_content(post_data, text, entities)
+
+	return post_data
