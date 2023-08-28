@@ -494,6 +494,10 @@ def change_state_button_event(bot: telebot.TeleBot, call: telebot.types.Callback
 	main_channel_id = post_data.chat.id
 
 	hashtag_data = HashtagData(post_data, main_channel_id)
+	if not is_ticket_opened and hashtag_data.is_tag_in_other_hashtags(hashtag_data_utils.OPENED_TAG):
+		bot.answer_callback_query(call.id, "This ticket cannot be closed due to an opened tag in the text")
+		return
+
 	post_data = hashtag_data.get_post_data_without_hashtags()
 
 	state_str = "opened" if is_ticket_opened else "closed"
@@ -558,6 +562,12 @@ def change_priority_button_event(bot: telebot.TeleBot, call: telebot.types.Callb
 
 	original_post_data = copy.deepcopy(post_data)
 	hashtag_data = HashtagData(post_data, main_channel_id)
+
+	priorities = hashtag_data.find_priorities_in_other_hashtags()
+	if int(new_priority) > min(priorities):
+		bot.answer_callback_query(call.id, "Can't change priority because of a tag with higher priority in the text")
+		return
+
 	post_data = hashtag_data.get_post_data_without_hashtags()
 
 	utils.add_comment_to_ticket(bot, post_data, f"{call.from_user.first_name} changed ticket's priority to {new_priority}. ")

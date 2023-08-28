@@ -164,20 +164,7 @@ class HashtagData:
 			current_offset = next_entity.offset + next_entity.length
 			front_index += 1
 
-		back_index = len(entities) - 1
-		current_offset = 0
-		while back_index > 0:
-			previous_entity = entities[back_index]
-			text_in_between = text[previous_entity.offset + previous_entity.length:len(text)-current_offset]
-			spaces_only = all([i == ' ' for i in text_in_between])
-			if not spaces_only:
-				break
-			current_offset = len(text) - previous_entity.offset
-			back_index -= 1
-
-		if back_index < (front_index - 2):
-			back_index = front_index
-		return range(front_index, back_index + 1)
+		return range(front_index, len(entities))
 
 	def find_hashtag_indexes(self, text: str, entities: List[telebot.types.MessageEntity], main_channel_id: int):
 		scheduled_tag_index = None
@@ -295,6 +282,7 @@ class HashtagData:
 		return mentioned_users
 
 	def get_post_data_without_hashtags(self):
+		self.update_hashtags()
 		text, entities = utils.get_post_content(self.post_data)
 		scheduled_tag_index, status_tag_index, user_tag_indexes, priority_tag_index = self.hashtag_indexes
 
@@ -381,3 +369,39 @@ class HashtagData:
 		if main_channel_id_str in DEFAULT_USER_DATA:
 			user, priority = DEFAULT_USER_DATA[main_channel_id_str].split()
 			return priority
+
+
+	def is_tag_in_other_hashtags(self, tag: str):
+		if not tag.startswith("#"):
+			tag = f"#{tag}"
+		return tag in self.other_hashtags
+
+	def find_priorities_in_other_hashtags(self):
+		other_hashtags = [h[1:] for h in self.other_hashtags]
+		priority_filter = lambda t: (t.startswith(PRIORITY_TAG)) and (t[len(PRIORITY_TAG):] in POSSIBLE_PRIORITIES)
+		priority_tags = filter(priority_filter, other_hashtags)
+		priorities = [int(p[len(PRIORITY_TAG):]) for p in priority_tags]
+		return priorities
+
+	def update_hashtags(self):
+		if self.status_tag is None:
+			if self.is_tag_in_other_hashtags(OPENED_TAG):
+				self.status_tag = OPENED_TAG
+			elif self.is_tag_in_other_hashtags(CLOSED_TAG):
+				self.status_tag = CLOSED_TAG
+		elif self.status_tag != OPENED_TAG and self.is_tag_in_other_hashtags(OPENED_TAG):
+			self.status_tag = OPENED_TAG
+
+		priorities = self.find_priorities_in_other_hashtags()
+		if priorities:
+			current_priority = self.get_priority_number_or_default()
+			highest_priority = min(priorities)
+
+			if current_priority is not None:
+				current_priority = int(current_priority)
+				if current_priority <= highest_priority:
+					return
+				priorities.append(current_priority)
+
+			highest_priority = min(priorities)
+			self.priority_tag = f"{PRIORITY_TAG}{highest_priority}"
