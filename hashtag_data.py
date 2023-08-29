@@ -282,7 +282,6 @@ class HashtagData:
 		return mentioned_users
 
 	def get_post_data_without_hashtags(self):
-		self.update_hashtags()
 		text, entities = utils.get_post_content(self.post_data)
 		scheduled_tag_index, status_tag_index, user_tag_indexes, priority_tag_index = self.hashtag_indexes
 
@@ -384,7 +383,9 @@ class HashtagData:
 		return priorities
 
 	def update_hashtags(self):
-		if self.status_tag is None:
+		if self.is_scheduled():
+			pass
+		elif self.status_tag is None:
 			if self.is_tag_in_other_hashtags(OPENED_TAG):
 				self.status_tag = OPENED_TAG
 			elif self.is_tag_in_other_hashtags(CLOSED_TAG):

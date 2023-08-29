@@ -494,7 +494,8 @@ def change_state_button_event(bot: telebot.TeleBot, call: telebot.types.Callback
 	main_channel_id = post_data.chat.id
 
 	hashtag_data = HashtagData(post_data, main_channel_id)
-	if not is_ticket_opened and hashtag_data.is_tag_in_other_hashtags(hashtag_data_utils.OPENED_TAG):
+	is_opened_tag_in_other_tags = hashtag_data.is_tag_in_other_hashtags(hashtag_data_utils.OPENED_TAG)
+	if not hashtag_data.is_scheduled() and not is_ticket_opened and is_opened_tag_in_other_tags:
 		bot.answer_callback_query(call.id, "This ticket cannot be closed due to an opened tag in the text")
 		return
 
@@ -564,7 +565,7 @@ def change_priority_button_event(bot: telebot.TeleBot, call: telebot.types.Callb
 	hashtag_data = HashtagData(post_data, main_channel_id)
 
 	priorities = hashtag_data.find_priorities_in_other_hashtags()
-	if int(new_priority) > min(priorities):
+	if priorities and int(new_priority) > min(priorities):
 		bot.answer_callback_query(call.id, "Can't change priority because of a tag with higher priority in the text")
 		return
 
@@ -636,6 +637,7 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 
 def rearrange_hashtags(bot: telebot.TeleBot, post_data: telebot.types.Message, hashtag_data: HashtagData,
 					   original_post_data: telebot.types.Message = None):
+	hashtag_data.update_hashtags()
 	hashtags = hashtag_data.get_hashtags_for_insertion()
 	post_data = hashtag_utils.insert_hashtags(post_data, hashtags)
 
