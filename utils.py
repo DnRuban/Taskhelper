@@ -145,8 +145,13 @@ def is_post_data_equal(post_data1: telebot.types.Message, post_data2: telebot.ty
 	for entity_i in range(len(entities1)):
 		e1 = entities1[entity_i]
 		e2 = entities2[entity_i]
-		if e1.type != e2.type or e1.offset != e2.offset or e1.url != e2.url or e1.length != e2.length:
+		if e1.type != e2.type or e1.offset != e2.offset or e1.url != e2.url:
 			return False
+
+		if e1.type == "hashtag":
+			return True  # for hashtags length is ignored because length of scheduled tags can be changed
+		else:
+			return e1.length == e2.length
 
 	return True
 
