@@ -23,7 +23,7 @@ POSSIBLE_PRIORITIES = ["1", "2", "3"]
 class HashtagData:
 	SCHEDULED_DATE_FORMAT_REGEX = "^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}"
 
-	def __init__(self, post_data: telebot.types.Message, main_channel_id: int):
+	def __init__(self, post_data: telebot.types.Message, main_channel_id: int, insert_default_tags: bool = False):
 		self.hashtag_indexes = []
 		self.post_data = post_data
 		self.main_channel_id = main_channel_id
@@ -34,6 +34,10 @@ class HashtagData:
 		self.status_tag = status_tag
 		self.user_tags = user_tags
 		self.priority_tag = priority_tag
+
+		missing_tags = self.get_assigned_user() is None or self.get_priority_number() is None or self.is_status_missing()
+		if insert_default_tags and missing_tags:
+			self.insert_default_user_and_priority()
 
 		self.mentioned_users = self.find_mentioned_users(post_data)
 		for user_tag in self.mentioned_users:
@@ -460,10 +464,11 @@ class HashtagData:
 		tag = text[entities[entity_index].offset + 1:entities[entity_index].offset + entities[entity_index].length]
 		old_scheduled_tag = config_utils.HASHTAGS_BEFORE_UPDATE["SCHEDULED"]
 		if tag.startswith(old_scheduled_tag):
+			scheduled_date = tag[len(old_scheduled_tag):]
 			position = entities[entity_index].offset
 			text, entities = utils.cut_entity_from_post(text, entities, entity_index)
 			new_hashtag = SCHEDULED_TAG
-			text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + new_hashtag, position)
+			text, entities = hashtag_utils.insert_hashtag_in_post(text, entities, "#" + new_hashtag + scheduled_date, position)
 			return text
 
 	def replace_old_priority_tag(self, text: str, entities: List[MessageEntity], entity_index: int):

@@ -611,12 +611,8 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 
 	original_post_data = copy.deepcopy(post_data)
 
-	hashtag_data = HashtagData(post_data, main_channel_id)
+	hashtag_data = HashtagData(post_data, main_channel_id, True)
 	post_data = hashtag_data.get_post_data_without_hashtags()
-	assigned_user = hashtag_data.get_assigned_user()
-	priority = hashtag_data.get_priority_number()
-	if assigned_user is None or priority is None or hashtag_data.is_status_missing():
-		hashtag_data.insert_default_user_and_priority()
 
 	ticket_user_tags = hashtag_data.get_all_users()
 
