@@ -16,12 +16,11 @@ import hashtag_utils
 import utils
 from config_utils import TIMEZONE_NAME
 from hashtag_data import HashtagData
+from utils import SCHEDULED_DATETIME_FORMAT
 
 CALLBACK_PREFIX = "SCH"
 
 SCHEDULED_MESSAGES_LIST: list = []
-
-DATE_FORMAT = "%Y-%m-%d %H:%M"
 
 class CB_TYPES:
 	MONTH_CALENDAR = "CALENDAR"
@@ -41,7 +40,7 @@ def schedule_message(bot: telebot.TeleBot, call: telebot.types.CallbackQuery, se
 	if not db_utils.is_main_channel_exists(main_channel_id):
 		return
 
-	date_str = dt.strftime(DATE_FORMAT)
+	date_str = dt.strftime(SCHEDULED_DATETIME_FORMAT)
 
 	if db_utils.is_message_scheduled(main_message_id, main_channel_id):
 		db_utils.update_scheduled_message(main_message_id, main_channel_id, send_time)
@@ -74,14 +73,14 @@ def schedule_message(bot: telebot.TeleBot, call: telebot.types.CallbackQuery, se
 	comment_text = f"{call.from_user.first_name} scheduled the ticket to be sent on {date_str}."
 	utils.add_comment_to_ticket(bot, message, comment_text)
 
+	db_utils.insert_scheduled_message(main_message_id, main_channel_id, 0, 0, send_time)
+
 	hashtag_data = HashtagData(message, main_channel_id)
 	message = hashtag_data.get_post_data_without_hashtags()
 
 	hashtag_data.set_scheduled_tag(date_str)
 	hashtag_data.set_status_tag(None)
 	forwarding_utils.rearrange_hashtags(bot, message, hashtag_data)
-
-	db_utils.insert_scheduled_message(main_message_id, main_channel_id, 0, 0, send_time)
 
 	forwarding_utils.add_control_buttons(bot, message, hashtag_data)
 	forwarding_utils.forward_to_subchannel(bot, message, hashtag_data)
@@ -321,3 +320,31 @@ def schedule_loop_thread(bot: telebot.TeleBot):
 				logging.error(f"Exception during sending scheduled message: {E}")
 		time.sleep(1)
 
+
+def update_scheduled_time_from_ticket(bot: telebot.TeleBot, msg_data: telebot.types.Message, hashtag_data: HashtagData):
+	main_channel_id = msg_data.chat.id
+	main_message_id = msg_data.message_id
+
+	if not hashtag_data.is_scheduled():
+		cancel_scheduled_message(main_channel_id, main_message_id)
+		return
+
+	datetime_str = hashtag_data.get_scheduled_datetime()
+	dt = datetime.datetime.strptime(datetime_str, SCHEDULED_DATETIME_FORMAT)
+
+	timezone = pytz.timezone(TIMEZONE_NAME)
+	dt = timezone.localize(dt)
+	send_time = int(dt.astimezone(pytz.UTC).timestamp())
+
+	current_send_time = db_utils.get_scheduled_message_send_time(main_message_id, main_channel_id)
+	if current_send_time != send_time:
+		db_utils.update_scheduled_message(main_message_id, main_channel_id, send_time)
+
+		for msg in SCHEDULED_MESSAGES_LIST:
+			message_id, channel_id, _ = msg
+			if message_id == main_message_id and channel_id == main_channel_id:
+				msg[2] = send_time
+		SCHEDULED_MESSAGES_LIST.sort(key=scheduled_message_comparison_func)
+
+		comment_text = f"Ticket was rescheduled to {datetime_str}."
+		utils.add_comment_to_ticket(bot, msg_data, comment_text)

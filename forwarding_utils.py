@@ -631,10 +631,10 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 
 def rearrange_hashtags(bot: telebot.TeleBot, post_data: telebot.types.Message, hashtag_data: HashtagData,
 					   original_post_data: telebot.types.Message = None):
-	hashtag_data.update_hashtags()
-	hashtags = hashtag_data.get_hashtags_for_insertion()
-	post_data = hashtag_data_utils.insert_hashtags(post_data, hashtags)
-	post_data = hashtag_data.remove_duplicates(post_data)
+	is_scheduled = db_utils.is_message_scheduled(post_data.message_id, post_data.chat.id)
+	post_data = hashtag_data.rearrange_hashtags(post_data, is_scheduled)
+	if is_scheduled:
+		scheduled_messages_utils.update_scheduled_time_from_ticket(bot, post_data, hashtag_data)
 
 	if original_post_data and utils.is_post_data_equal(post_data, original_post_data):
 		return

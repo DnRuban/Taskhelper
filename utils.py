@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+import datetime
 from typing import List
 
 import telebot.types
@@ -16,6 +17,7 @@ SAME_MSG_CONTENT_ERROR = "Bad Request: message is not modified: specified new me
 MSG_CANT_BE_DELETED_ERROR = "message can't be deleted"
 MSG_NOT_FOUND_ERROR = "message to delete not found"
 KICKED_FROM_CHANNEL_ERROR = "Forbidden: bot was kicked from the channel chat"
+SCHEDULED_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 _TIMEOUT_LOCK = threading.Lock()
 
@@ -335,3 +337,9 @@ def get_main_message_content_by_id(bot: telebot.TeleBot, chat_id: int, message_i
 def copy_message(bot: telebot.TeleBot, **kwargs):
 	return bot.copy_message(**kwargs)
 
+
+def check_datetime(datetime_str, template_str):
+	try:
+		return datetime.datetime.strptime(datetime_str, template_str)
+	except ValueError:
+		return
