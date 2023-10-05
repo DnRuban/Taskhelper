@@ -368,7 +368,7 @@ class HashtagData:
 				remained_text.append(date_str)
 				if len(scheduled_parts) > 2:
 					remained_text.append(scheduled_parts[2])
-					continue
+				continue
 
 			if len(scheduled_parts) < 3:
 				time_str = "00:00"
@@ -478,8 +478,8 @@ class HashtagData:
 
 	def remove_duplicates(self, post_data: telebot.types.Message, is_scheduled: bool):
 		text, entities = utils.get_post_content(post_data)
-		entity_tags = [self.get_tag_from_entity(e, text) for e in entities]
 		entities_to_ignore = self.get_entities_to_ignore(text, entities)
+		entity_tags = [self.get_tag_from_entity(e, text) for e in entities]
 
 		checked_entities = []
 
