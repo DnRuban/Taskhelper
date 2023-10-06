@@ -132,7 +132,7 @@ def update_copied_message(bot: telebot.TeleBot, copied_channel_id: int, copied_m
 	post_data.message_id = main_message_id
 	post_data.chat.id = main_channel_id
 
-	hashtag_data = HashtagData(post_data, main_message_id)
+	hashtag_data = HashtagData(post_data, main_channel_id)
 	keyboard = generate_control_buttons(hashtag_data, post_data)
 	utils.edit_message_keyboard(bot, post_data, keyboard, chat_id=copied_channel_id, message_id=copied_message_id)
 

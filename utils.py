@@ -179,11 +179,12 @@ def edit_message_keyboard(bot: telebot.TeleBot, post_data: telebot.types.Message
 	if db_utils.is_individual_channel_exists(chat_id):
 		newest_message_id = db_utils.get_newest_copied_message(chat_id)
 		if message_id == newest_message_id:
-			settings_button = telebot.types.InlineKeyboardButton("Send channel settings")
+			settings_button = telebot.types.InlineKeyboardButton("Settings ⚙️")
 			settings_button.callback_data = create_callback_str(
 				channel_manager.CALLBACK_PREFIX,
 				channel_manager.CB_TYPES.SEND_CHANNEL_SETTINGS
 			)
+			keyboard.keyboard.append([telebot.types.InlineKeyboardButton(" ", callback_data="_")])
 			keyboard.keyboard.append([settings_button])
 
 	try:
