@@ -250,7 +250,13 @@ def generate_minutes_buttons(current_date, current_hour):
 def send_scheduled_message(bot: telebot.TeleBot, scheduled_message_info):
 	logging.info(f"Sending scheduled message {scheduled_message_info}")
 	main_message_id, main_channel_id, send_time = scheduled_message_info
-	message = utils.get_message_content_by_id(bot, main_channel_id, main_message_id)
+	try:
+		message = utils.get_main_message_content_by_id(bot, main_channel_id, main_message_id)
+	except ApiTelegramException:
+		utils.delete_main_message(bot, main_channel_id, main_message_id)
+		SCHEDULED_MESSAGES_LIST.remove(scheduled_message_info)
+		return
+
 	if message is None:
 		return
 

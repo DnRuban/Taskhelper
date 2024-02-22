@@ -9,6 +9,7 @@ from telebot.apihelper import ApiTelegramException
 import config_utils
 import daily_reminder
 import db_utils
+import forwarding_utils
 from config_utils import MAX_BUTTONS_IN_ROW
 
 SAME_MSG_CONTENT_ERROR = "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message"
@@ -282,6 +283,44 @@ def get_message_content_by_id(bot: telebot.TeleBot, chat_id: int, message_id: in
 		if E.error_code == 429:
 			raise E
 		logging.error(f"Error during getting message {[message_id, chat_id]} content - {E}")
+		return
+
+	return forwarded_message
+
+
+def delete_main_message(bot: telebot.TeleBot, main_channel_id: int, main_message_id: int):
+	messages = db_utils.get_copied_messages_from_main(main_message_id, main_channel_id)
+	for msg in messages:
+		copied_message_id, copied_channel_id = msg
+		forwarding_utils.delete_forwarded_message(bot, copied_channel_id, copied_message_id)
+		db_utils.delete_copied_message(copied_message_id, copied_channel_id)
+		logging.info(f"Removed forwarded message {msg} after it was deleted from main channel {main_message_id, main_channel_id}")
+	db_utils.delete_scheduled_message_main(main_message_id, main_channel_id)
+
+	ticket_data = db_utils.get_ticket_data(main_message_id, main_channel_id)
+	if ticket_data:
+		discussion_chat_id = config_utils.DISCUSSION_CHAT_DATA[str(main_channel_id)]
+		bot.send_message(chat_id=discussion_chat_id, text=f"A user manually deleted ticket {main_message_id}")
+		db_utils.delete_ticket_data(main_message_id, main_channel_id)
+
+
+@timeout_error_lock
+def get_main_message_content_by_id(bot: telebot.TeleBot, chat_id: int, message_id: int):
+	try:
+		forwarded_message = bot.forward_message(chat_id=config_utils.DUMP_CHAT_ID, from_chat_id=chat_id,
+												message_id=message_id)
+		bot.delete_message(chat_id=config_utils.DUMP_CHAT_ID, message_id=forwarded_message.message_id)
+	except ApiTelegramException as E:
+		if E.error_code == 429:
+			raise E
+		elif E.description == "Bad Request: message to forward not found":
+			raise E
+		elif E.description == "Bad Request: MESSAGE_ID_INVALID":
+			# for some reason telegram throws this error if after deleting a message
+			# no other actions were performed in this channel
+			# instead of regular "message to forward not found" error
+			raise E
+		logging.error(f"Error during getting message content - {E}")
 		return
 
 	return forwarded_message
