@@ -283,6 +283,14 @@ def update_copied_message_id(copied_message_id, copied_channel_id, updated_messa
 
 
 @db_thread_lock
+def get_copied_messages_from_main(main_message_id, main_channel_id):
+	sql = "SELECT copied_message_id, copied_channel_id FROM copied_messages WHERE main_message_id=(?) AND main_channel_id=(?)"
+	CURSOR.execute(sql, (main_message_id, main_channel_id,))
+	result = CURSOR.fetchall()
+	return result
+
+
+@db_thread_lock
 def insert_or_update_last_msg_id(last_message_id, chat_id):
 	if get_last_message_id(chat_id):
 		sql = "UPDATE last_message_ids SET last_message_id=(?) WHERE chat_id=(?)"
@@ -565,15 +573,6 @@ def insert_main_channel_message(main_channel_id, main_message_id, sender_id):
 
 
 @db_thread_lock
-def get_main_message_sender(main_channel_id, main_message_id):
-	sql = "SELECT sender_id FROM main_messages WHERE main_channel_id=(?) AND main_message_id=(?)"
-	CURSOR.execute(sql, (main_channel_id, main_message_id,))
-	result = CURSOR.fetchone()
-	if result:
-		return result[0]
-
-
-@db_thread_lock
 def is_main_message_exists(main_channel_id, main_message_id):
 	sql = "SELECT id FROM main_messages WHERE main_channel_id=(?) AND main_message_id=(?)"
 	CURSOR.execute(sql, (main_channel_id, main_message_id,))
@@ -655,6 +654,13 @@ def get_user_highest_priority(main_channel_id, user_tag):
 	CURSOR.execute(sql, (user_tag, main_channel_id,))
 	result = CURSOR.fetchone()
 	return result[0]
+
+
+@db_thread_lock
+def delete_ticket_data(main_message_id, main_channel_id):
+	sql = "DELETE FROM tickets_data WHERE main_message_id=(?) AND main_channel_id=(?)"
+	CURSOR.execute(sql, (main_message_id, main_channel_id,))
+	DB_CONNECTION.commit()
 
 
 @db_thread_lock
