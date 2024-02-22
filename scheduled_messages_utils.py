@@ -271,8 +271,7 @@ def send_scheduled_message(bot: telebot.TeleBot, scheduled_message_info):
 	forwarding_utils.add_control_buttons(bot, post_data, hashtag_data)
 	forwarding_utils.forward_to_subchannel(bot, post_data, hashtag_data)
 
-	SCHEDULED_MESSAGES_LIST.remove(scheduled_message_info)
-	db_utils.delete_scheduled_message_main(main_message_id, main_channel_id)
+	cancel_scheduled_message(main_channel_id, main_message_id)
 
 
 def cancel_scheduled_message(main_channel_id, main_message_id):
