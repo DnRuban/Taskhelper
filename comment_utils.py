@@ -64,6 +64,24 @@ def update_next_action(bot: telebot.TeleBot, main_message_id: int, main_channel_
 	utils.edit_message_content(bot, post_data, chat_id=main_channel_id,
 	                           message_id=main_message_id, reply_markup=keyboard_markup)
 
-	# for compatibility with older versions
 	db_utils.insert_or_update_current_next_action(main_message_id, main_channel_id, next_action)
-	db_utils.update_previous_next_action(main_message_id, main_channel_id, next_action_with_prefix)
+
+
+def add_next_action_comment(bot: telebot.TeleBot, post_data: telebot.types.Message):
+	main_channel_id = post_data.chat.id
+	main_message_id = post_data.message_id
+
+	text, entities = utils.get_post_content(post_data)
+	if _NEXT_ACTION_TEXT_PREFIX not in text:
+		return
+
+	stored_next_action = db_utils.get_next_action_text(main_message_id, main_channel_id)
+
+	next_action_index = text.find(_NEXT_ACTION_TEXT_PREFIX)
+	current_next_action = text[next_action_index + len(_NEXT_ACTION_TEXT_PREFIX):]
+	if len(current_next_action) < 1:
+		return
+
+	if stored_next_action != current_next_action:
+		utils.add_comment_to_ticket(bot, post_data, f"{_NEXT_ACTION_COMMENT_PREFIX}{current_next_action}")
+		db_utils.insert_or_update_current_next_action(main_message_id, main_channel_id, current_next_action)

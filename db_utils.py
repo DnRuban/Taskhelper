@@ -598,15 +598,16 @@ def get_all_users():
 
 @db_thread_lock
 def get_next_action_text(main_message_id, main_channel_id):
-	sql = "SELECT previous_comment_text, current_comment_text FROM next_action_comments WHERE main_channel_id=(?) AND main_message_id=(?)"
+	sql = "SELECT current_comment_text FROM next_action_comments WHERE main_channel_id=(?) AND main_message_id=(?)"
 	CURSOR.execute(sql, (main_channel_id, main_message_id,))
 	result = CURSOR.fetchone()
-	return result
+	if result:
+		return result[0]
 
 
 @db_thread_lock
 def insert_or_update_current_next_action(main_message_id, main_channel_id, comment_text):
-	if get_next_action_text(main_message_id, main_channel_id):
+	if get_next_action_text(main_message_id, main_channel_id) is not None:
 		sql = "UPDATE next_action_comments SET current_comment_text=(?) WHERE main_message_id=(?) and main_channel_id=(?)"
 	else:
 		sql = "INSERT INTO next_action_comments (current_comment_text, main_message_id, main_channel_id) VALUES (?, ?, ?)"

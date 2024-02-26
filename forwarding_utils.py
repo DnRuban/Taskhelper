@@ -10,6 +10,7 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import channel_manager
+import comment_utils
 import config_utils
 import daily_reminder
 import db_utils
@@ -624,6 +625,7 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 				hashtag_data.add_to_followers(user_tag)
 
 	rearrange_hashtags(bot, post_data, hashtag_data, original_post_data)
+	comment_utils.add_next_action_comment(bot, post_data)
 	add_control_buttons(bot, post_data, hashtag_data)
 	if config_utils.AUTO_FORWARDING_ENABLED or force_forward:
 		forward_to_subchannel(bot, post_data, hashtag_data)
