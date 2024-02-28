@@ -39,6 +39,8 @@ class SETTING_TYPES:
 	DUE = "due"
 	DEFERRED = "deferred"
 	REMIND = "remind"
+	SETTINGS_MESSAGE_ID = "settings_message_id"
+
 
 MENU_TITLES = {
 	SETTING_TYPES.ASSIGNED: "Assigned to:",
@@ -46,6 +48,7 @@ MENU_TITLES = {
 	SETTING_TYPES.FOLLOWED: "CCed to:",
 	SETTING_TYPES.REMIND: "Remind me when:",
 }
+
 
 class REMIND_TYPES:
 	ASSIGNED = "assigned"
@@ -163,6 +166,11 @@ def send_settings_keyboard(bot: telebot.TeleBot, msg_data: telebot.types.Message
 	settings_str = json.dumps(_DEFAULT_SETTINGS)
 	db_utils.insert_individual_channel(main_channel_id, channel_id, settings_str, user_id)
 
+	settings, priorities = get_individual_channel_settings(channel_id)
+	settings_message_id = settings.get(SETTING_TYPES.SETTINGS_MESSAGE_ID)
+	if settings_message_id:
+		forwarding_utils.delete_forwarded_message(bot, channel_id, settings_message_id)
+
 	keyboard = generate_settings_keyboard(channel_id)
 	text = '''
 		Please select this channel's settings, click on buttons to select/deselect filtering parameters. When all needed parameters are selected press "Save" button. You can call this settings menu using "/show_settings" command. If "New users" parameter is selected than new users will be automatically added to the list. Descriptions of each parameter:
@@ -173,7 +181,10 @@ def send_settings_keyboard(bot: telebot.TeleBot, msg_data: telebot.types.Message
 		5) Due - if this option is enabled, regular(NOT scheduled) tickets will be included in this channel
 		6) Deferred - if this option is enabled, scheduled tickets will be included in this channel
 	'''
-	bot.send_message(chat_id=channel_id, text=text, reply_markup=keyboard)
+	settings_message = bot.send_message(chat_id=channel_id, text=text, reply_markup=keyboard)
+	settings[SETTING_TYPES.SETTINGS_MESSAGE_ID] = settings_message.id
+	settings_str = json.dumps(settings)
+	db_utils.update_individual_channel_settings(channel_id, settings_str)
 
 
 def generate_user_keyboard(main_channel_id: int, channel_id: int, setting_type: str):
@@ -353,6 +364,7 @@ def handle_callback(bot: telebot.TeleBot, call: CallbackQuery):
 		toggle_button(bot, call, callback_type, other_data)
 	elif callback_type == CB_TYPES.SEND_CHANNEL_SETTINGS:
 		send_settings_keyboard(bot, call.message)
+		bot.answer_callback_query(call.id)
 
 
 def is_button_checked(buttons: List[InlineKeyboardButton], target_cb_type: str):
@@ -424,6 +436,7 @@ def save_channel_settings(bot: telebot.TeleBot, call: CallbackQuery):
 		settings[setting_name] = new_settings[setting_name]
 
 	priorities_str = _TYPE_SEPARATOR.join(priorities)
+	settings.pop(SETTING_TYPES.SETTINGS_MESSAGE_ID, None)
 	settings_str = json.dumps(settings)
 
 	db_utils.update_individual_channel(channel_id, settings_str, priorities_str)
