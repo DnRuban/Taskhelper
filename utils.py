@@ -293,9 +293,9 @@ def delete_main_message(bot: telebot.TeleBot, main_channel_id: int, main_message
 	for msg in messages:
 		copied_message_id, copied_channel_id = msg
 		forwarding_utils.delete_forwarded_message(bot, copied_channel_id, copied_message_id)
-		db_utils.delete_copied_message(copied_message_id, copied_channel_id)
 		logging.info(f"Removed forwarded message {msg} after it was deleted from main channel {main_message_id, main_channel_id}")
 	db_utils.delete_scheduled_message_main(main_message_id, main_channel_id)
+	db_utils.delete_main_channel_message(main_channel_id, main_message_id)
 
 	ticket_data = db_utils.get_ticket_data(main_message_id, main_channel_id)
 	if ticket_data:
