@@ -189,16 +189,22 @@ def due_filter(channel):
 	return settings[channel_manager.SETTING_TYPES.DUE]
 
 
+def filter_due_deferred_tickets(main_channel_id: int, main_message_id: int, hashtag_data: HashtagData, channel_data: List):
+	if hashtag_data.is_scheduled():
+		send_time = db_utils.get_scheduled_message_send_time(main_message_id, main_channel_id)
+		if send_time and send_time > time.time():
+			return list(filter(deferred_filter, channel_data))
+
+	return list(filter(due_filter, channel_data))
+
+
 def get_subchannel_ids_from_hashtags(main_channel_id: int, main_message_id: int, hashtag_data: HashtagData):
 	subchannel_ids = set()
 	priority = hashtag_data.get_priority_number_or_default()
 	channel_data = db_utils.get_individual_channels_by_priority(main_channel_id, priority)
 	channel_data = [[channel_id, json.loads(settings)] for channel_id, settings in channel_data]
 
-	if hashtag_data.is_scheduled() and db_utils.is_message_scheduled(main_message_id, main_channel_id):
-		channel_data = list(filter(deferred_filter, channel_data))
-	else:
-		channel_data = list(filter(due_filter, channel_data))
+	channel_data = filter_due_deferred_tickets(main_channel_id, main_message_id, hashtag_data, channel_data)
 
 	assigned_user_subchannels = filter_assigned_user_channels(channel_data, hashtag_data)
 	if assigned_user_subchannels:
@@ -274,10 +280,6 @@ def generate_control_buttons(hashtag_data: HashtagData, post_data: telebot.types
 	main_message_id = post_data.message_id
 
 	if hashtag_data.is_opened():
-		state_switch_callback_data = utils.create_callback_str(CALLBACK_PREFIX, CB_TYPES.CLOSE)
-		state_btn_text = config_utils.BUTTON_TEXTS["OPENED_TICKET"]
-		state_switch_button = InlineKeyboardButton(state_btn_text, callback_data=state_switch_callback_data)
-	elif hashtag_data.is_scheduled():
 		state_switch_callback_data = utils.create_callback_str(CALLBACK_PREFIX, CB_TYPES.CLOSE)
 		state_btn_text = config_utils.BUTTON_TEXTS["OPENED_TICKET"]
 		state_switch_button = InlineKeyboardButton(state_btn_text, callback_data=state_switch_callback_data)
@@ -493,7 +495,7 @@ def change_state_button_event(bot: telebot.TeleBot, call: telebot.types.Callback
 
 	hashtag_data = HashtagData(post_data, main_channel_id)
 	is_opened_tag_in_other_tags = hashtag_data.is_tag_in_other_hashtags(hashtag_data_utils.OPENED_TAG)
-	if not hashtag_data.is_scheduled() and not is_ticket_opened and is_opened_tag_in_other_tags:
+	if not is_ticket_opened and is_opened_tag_in_other_tags:
 		bot.answer_callback_query(call.id, "This ticket cannot be closed due to an opened tag in the text")
 		return
 
@@ -503,10 +505,6 @@ def change_state_button_event(bot: telebot.TeleBot, call: telebot.types.Callback
 	utils.add_comment_to_ticket(bot, post_data, f"{call.from_user.first_name} {state_str} the ticket.")
 
 	hashtag_data.set_status_tag(is_ticket_opened)
-	hashtag_data.set_scheduled_tag(None)
-
-	if not is_ticket_opened:
-		scheduled_messages_utils.cancel_scheduled_message(main_channel_id, post_data.message_id)
 
 	rearrange_hashtags(bot, post_data, hashtag_data)
 	for button in post_data.reply_markup.keyboard[0]:
@@ -631,10 +629,8 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 
 def rearrange_hashtags(bot: telebot.TeleBot, post_data: telebot.types.Message, hashtag_data: HashtagData,
 					   original_post_data: telebot.types.Message = None):
-	is_scheduled = db_utils.is_message_scheduled(post_data.message_id, post_data.chat.id)
-	post_data = hashtag_data.rearrange_hashtags(post_data, is_scheduled)
-	if is_scheduled:
-		scheduled_messages_utils.update_scheduled_time_from_ticket(bot, post_data, hashtag_data)
+	post_data = hashtag_data.rearrange_hashtags(post_data)
+	scheduled_messages_utils.update_scheduled_time_from_ticket(bot, post_data, hashtag_data)
 
 	if original_post_data and utils.is_post_data_equal(post_data, original_post_data):
 		return

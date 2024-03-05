@@ -90,6 +90,17 @@ def create_tables():
 
 		CURSOR.execute(scheduled_messages_table_sql)
 
+	if not is_table_exists("sent_scheduled_messages"):
+		sent_scheduled_messages_table_sql = '''
+			CREATE TABLE "sent_scheduled_messages" (
+				"id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+				"main_message_id"   INT NOT NULL,
+				"main_channel_id"   INT NOT NULL,
+				"sent_at"   INT NOT NULL
+			); '''
+
+		CURSOR.execute(sent_scheduled_messages_table_sql)
+
 	if not is_table_exists("interval_updates_status"):
 		interval_updates_status_table_sql = '''
 			CREATE TABLE "interval_updates_status" (
@@ -862,3 +873,31 @@ def get_all_individual_channels(main_channel_id):
 		return result
 	else:
 		return []
+
+
+@db_thread_lock
+def get_sent_scheduled_message_time(main_message_id, main_channel_id):
+	sql = "SELECT sent_at FROM sent_scheduled_messages WHERE main_message_id = (?) AND main_channel_id=(?)"
+	CURSOR.execute(sql, (main_message_id, main_channel_id,))
+	result = CURSOR.fetchone()
+	if result:
+		return result[0]
+
+
+@db_thread_lock
+def insert_or_update_sent_scheduled_message(main_message_id, main_channel_id, sent_at):
+	if is_message_was_scheduled(main_message_id, main_channel_id):
+		sql = "UPDATE sent_scheduled_messages SET sent_at=(?) WHERE main_message_id=(?) and main_channel_id=(?)"
+	else:
+		sql = "INSERT INTO sent_scheduled_messages (sent_at, main_message_id, main_channel_id) VALUES (?, ?, ?)"
+
+	CURSOR.execute(sql, (sent_at, main_message_id, main_channel_id,))
+	DB_CONNECTION.commit()
+
+
+@db_thread_lock
+def is_message_was_scheduled(main_message_id, main_channel_id):
+	sql = "SELECT sent_at FROM sent_scheduled_messages WHERE main_message_id = (?) AND main_channel_id=(?)"
+	CURSOR.execute(sql, (main_message_id, main_channel_id,))
+	result = CURSOR.fetchone()
+	return bool(result)

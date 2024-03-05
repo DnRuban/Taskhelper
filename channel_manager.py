@@ -2,7 +2,6 @@ import json
 from typing import List, Dict
 
 import telebot
-from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ChatMemberOwner
 
 import config_utils

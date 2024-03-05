@@ -97,7 +97,7 @@ def get_post_content(post_data: telebot.types.Message):
 	return "", []
 
 
-def set_post_content(post_data: telebot.types.Message, text: str, entities: telebot.types.MessageEntity):
+def set_post_content(post_data: telebot.types.Message, text: str, entities: List[telebot.types.MessageEntity]):
 	if post_data.text is not None:
 		post_data.text = text
 		post_data.entities = entities
