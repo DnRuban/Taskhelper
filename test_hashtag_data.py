@@ -227,6 +227,7 @@ class RemoveRedundantScheduledTagsTest(TestCase):
 
 		hashtag_data = HashtagData(post_data, main_channel_id)
 		hashtag_data.main_channel_id = main_channel_id
+		hashtag_data.scheduled_tag = None
 		result = hashtag_data.remove_redundant_scheduled_tags(text, entities)
 		self.assertEqual(result[0], "text\n#o #aa #bb #p1 #s 2023-06-25 17:00")
 
@@ -258,7 +259,8 @@ class RemoveRedundantScheduledTagsTest(TestCase):
 
 
 @patch("hashtag_data.SCHEDULED_TAG", "s")
-@patch("hashtag_data.SCHEDULED_DATE_FORMAT_REGEX", "^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}")
+@patch("hashtag_data.SCHEDULED_DATE_FORMAT_REGEX", "^\d{4}-\d{1,2}-\d{1,2}")
+@patch("hashtag_data.SCHEDULED_TIME_FORMAT_REGEX", "^\d{1,2}:\d{1,2}")
 class UpdateScheduledTagTest(TestCase):
 	def test_update_entity(self, *args):
 		text = "#s 2023-06-25 17:00"
@@ -281,10 +283,9 @@ class UpdateScheduledTagTest(TestCase):
 		text = "#s 2023-06-25"
 		entities = test_helper.create_hashtag_entity_list(text)
 
-		entity_length = entities[0].length
 		result = HashtagData.update_scheduled_tag(text, entities, 0)
 		self.assertFalse(result)
-		self.assertEqual(entities[0].length, entity_length)
+		self.assertEqual(entities[0].length, len(text))
 
 
 if __name__ == "__main__":
