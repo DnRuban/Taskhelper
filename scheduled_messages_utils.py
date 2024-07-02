@@ -41,6 +41,18 @@ def schedule_message(bot: telebot.TeleBot, call: telebot.types.CallbackQuery, se
 		return
 
 	date_str = dt.strftime(SCHEDULED_DATETIME_FORMAT)
+	hashtag_data = HashtagData(message, main_channel_id)
+	other_tags_date_str = hashtag_data.find_scheduled_tag_in_other_hashtags()
+
+	if other_tags_date_str:
+		scheduled_date = datetime.datetime.strptime(date_str, SCHEDULED_DATETIME_FORMAT)
+		current_timestamp = scheduled_date.timestamp()
+		other_tags_date = datetime.datetime.strptime(other_tags_date_str, SCHEDULED_DATETIME_FORMAT)
+		other_tags_timestamp = other_tags_date.timestamp()
+
+		if current_timestamp > other_tags_timestamp:
+			bot.answer_callback_query(call.id, "Scheduled tag with earlier date is already present in the text")
+			return
 
 	if db_utils.is_message_scheduled(main_message_id, main_channel_id):
 		db_utils.update_scheduled_message(main_message_id, main_channel_id, send_time)
@@ -54,7 +66,6 @@ def schedule_message(bot: telebot.TeleBot, call: telebot.types.CallbackQuery, se
 		comment_text = f"{call.from_user.first_name} rescheduled the ticket to be sent on {date_str}."
 		utils.add_comment_to_ticket(bot, message, comment_text)
 
-		hashtag_data = HashtagData(message, main_channel_id)
 		message = hashtag_data.get_post_data_without_hashtags()
 
 		hashtag_data.set_scheduled_tag(date_str)
@@ -73,7 +84,6 @@ def schedule_message(bot: telebot.TeleBot, call: telebot.types.CallbackQuery, se
 
 	db_utils.insert_scheduled_message(main_message_id, main_channel_id, 0, 0, send_time)
 
-	hashtag_data = HashtagData(message, main_channel_id)
 	message = hashtag_data.get_post_data_without_hashtags()
 
 	hashtag_data.set_scheduled_tag(date_str)
@@ -318,3 +328,40 @@ def schedule_loop_thread(bot: telebot.TeleBot):
 				logging.error(f"Exception during sending scheduled message: {E}")
 		time.sleep(1)
 
+
+def update_scheduled_time_from_ticket(bot: telebot.TeleBot, msg_data: telebot.types.Message, hashtag_data: HashtagData):
+	main_channel_id = msg_data.chat.id
+	main_message_id = msg_data.message_id
+
+	if not hashtag_data.is_scheduled():
+		db_utils.delete_scheduled_message_main(main_message_id, main_channel_id)
+		remove_scheduled_message(main_channel_id, main_message_id)
+		return
+
+	datetime_str = hashtag_data.get_scheduled_datetime()
+	dt = datetime.datetime.strptime(datetime_str, SCHEDULED_DATETIME_FORMAT)
+
+	timezone = pytz.timezone(TIMEZONE_NAME)
+	dt = timezone.localize(dt)
+	tag_send_time = int(dt.astimezone(pytz.UTC).timestamp())
+
+	if not db_utils.is_message_scheduled(main_message_id, main_channel_id):
+		db_utils.insert_scheduled_message(main_message_id, main_channel_id, 0, 0, tag_send_time)
+		scheduled_info = [main_message_id, main_channel_id, tag_send_time]
+		insert_schedule_message_info(scheduled_info)
+		comment_text = f"Ticket was scheduled to be sent on {datetime_str}."
+		utils.add_comment_to_ticket(bot, msg_data, comment_text)
+		return
+
+	ticket_send_time = db_utils.get_scheduled_message_send_time(main_message_id, main_channel_id)
+	if ticket_send_time != tag_send_time:
+		db_utils.update_scheduled_message(main_message_id, main_channel_id, tag_send_time)
+
+		for msg in SCHEDULED_MESSAGES_LIST:
+			message_id, channel_id, _ = msg
+			if message_id == main_message_id and channel_id == main_channel_id:
+				msg[2] = tag_send_time
+		SCHEDULED_MESSAGES_LIST.sort(key=scheduled_message_comparison_func)
+
+		comment_text = f"Ticket was rescheduled to {datetime_str}."
+		utils.add_comment_to_ticket(bot, msg_data, comment_text)
