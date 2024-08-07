@@ -16,7 +16,6 @@ SAME_MSG_CONTENT_ERROR = "Bad Request: message is not modified: specified new me
 MSG_CANT_BE_DELETED_ERROR = "message can't be deleted"
 MSG_NOT_FOUND_ERROR = "message to delete not found"
 KICKED_FROM_CHANNEL_ERROR = "Forbidden: bot was kicked from the channel chat"
-SCHEDULED_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
 def align_entities_to_utf8(text: str, entities: List[telebot.types.MessageEntity]):

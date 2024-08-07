@@ -16,11 +16,11 @@ import forwarding_utils
 import utils
 from config_utils import TIMEZONE_NAME
 from hashtag_data import HashtagData
-from utils import SCHEDULED_DATETIME_FORMAT
 
 
 class ScheduledMessageDispatcher:
 	CALLBACK_PREFIX = "SCH"
+	SCHEDULED_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 	__scheduled_messages_list: list = []
 
@@ -46,7 +46,7 @@ class ScheduledMessageDispatcher:
 		if not db_utils.is_main_channel_exists(main_channel_id):
 			return
 
-		date_str = dt.strftime(SCHEDULED_DATETIME_FORMAT)
+		date_str = dt.strftime(self.SCHEDULED_DATETIME_FORMAT)
 
 		if db_utils.is_message_scheduled(main_message_id, main_channel_id):
 			db_utils.update_scheduled_message(main_message_id, main_channel_id, send_time)
@@ -305,16 +305,45 @@ class ScheduledMessageDispatcher:
 					logging.error(f"Exception during sending scheduled message: {E}")
 			time.sleep(1)
 
-	@staticmethod
-	def update_scheduled_message_tags(hashtag_data: HashtagData):
+	def update_scheduled_message_tags(self, hashtag_data: HashtagData):
 		if not hashtag_data.is_scheduled():
 			return
 
-		dt = datetime.datetime.strptime(hashtag_data.get_scheduled_datetime_str(), utils.SCHEDULED_DATETIME_FORMAT)
+		dt = datetime.datetime.strptime(hashtag_data.get_scheduled_datetime_str(), self.SCHEDULED_DATETIME_FORMAT)
 		timezone = pytz.timezone(TIMEZONE_NAME)
 		dt = timezone.localize(dt)
 		is_sent = datetime.datetime.now().timestamp() > dt.timestamp()
 		hashtag_data.set_scheduled_status(is_sent)
+
+	def update_scheduled_time_from_ticket(self, msg_data: telebot.types.Message, hashtag_data: HashtagData):
+		main_channel_id = msg_data.chat.id
+		main_message_id = msg_data.message_id
+
+		if not hashtag_data.is_scheduled():
+			db_utils.delete_scheduled_message_main(main_message_id, main_channel_id)
+			self.remove_scheduled_message(main_channel_id, main_message_id)
+			return
+
+		datetime_str = hashtag_data.get_scheduled_datetime_str()
+		dt = datetime.datetime.strptime(datetime_str, self.SCHEDULED_DATETIME_FORMAT)
+
+		timezone = pytz.timezone(TIMEZONE_NAME)
+		dt = timezone.localize(dt)
+		tag_send_time = int(dt.astimezone(pytz.UTC).timestamp())
+
+		if not db_utils.is_message_scheduled(main_message_id, main_channel_id):
+			db_utils.insert_scheduled_message(main_message_id, main_channel_id, 0, 0, tag_send_time)
+			self.insert_schedule_message_info(main_message_id, main_channel_id, tag_send_time)
+			return
+
+		ticket_send_time = db_utils.get_scheduled_message_send_time(main_message_id, main_channel_id)
+		if ticket_send_time != tag_send_time:
+			db_utils.update_scheduled_message(main_message_id, main_channel_id, tag_send_time)
+
+			for msg in self.__scheduled_messages_list:
+				if msg.main_message_id == main_message_id and msg.main_channel_id == main_channel_id:
+					msg.send_time = tag_send_time
+			self.__scheduled_messages_list.sort(key=self.scheduled_message_comparison_func)
 
 	@staticmethod
 	def scheduled_message_comparison_func(msg: ScheduledMessage):

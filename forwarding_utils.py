@@ -10,11 +10,10 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import channel_manager
-import comment_utils
+from comment_utils import comment_dispatcher
 import config_utils
 import daily_reminder
 import db_utils
-import hashtag_utils
 from scheduled_messages_utils import scheduled_message_dispatcher
 import user_utils
 import utils
@@ -654,7 +653,7 @@ def forward_and_add_inline_keyboard(bot: telebot.TeleBot, post_data: telebot.typ
 				hashtag_data.add_to_followers(user_tag)
 
 	rearrange_hashtags(bot, post_data, hashtag_data, original_post_data)
-	comment_utils.add_next_action_comment(bot, post_data)
+	comment_dispatcher.add_next_action_comment(bot, post_data)
 	add_control_buttons(bot, post_data, hashtag_data)
 	if config_utils.AUTO_FORWARDING_ENABLED or force_forward:
 		forward_to_subchannel(bot, post_data, hashtag_data)
@@ -678,3 +677,9 @@ def rearrange_hashtags(bot: telebot.TeleBot, post_data: telebot.types.Message, h
 			raise E
 		logging.info(f"Exception during rearranging hashtags - {E}")
 		return
+
+
+def update_main_message(bot: telebot.TeleBot, post_data: telebot.types.Message, hashtag_data: HashtagData):
+	rearrange_hashtags(bot, post_data, hashtag_data)
+	add_control_buttons(bot, post_data, hashtag_data)
+	forward_to_subchannel(bot, post_data, hashtag_data)

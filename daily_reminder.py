@@ -23,22 +23,6 @@ def update_ticket_data(main_message_id: int, main_channel_id: int, hashtag_data:
 	db_utils.insert_or_update_ticket_data(main_message_id, main_channel_id, is_ticket_opened, user_tags, priority)
 
 
-def update_user_last_interaction(main_message_id: int, main_channel_id: int, msg_data: telebot.types.Message):
-	user_tags = db_utils.get_tags_from_user_id(msg_data.from_user.id)
-	if not user_tags and msg_data.from_user.username:
-		user_tags = db_utils.get_tags_from_user_id(msg_data.from_user.username)
-
-	if not user_tags:
-		return
-
-	for user_tag in user_tags:
-		highest_priority = db_utils.get_user_highest_priority(main_channel_id, user_tag)
-		_, priority, _ = db_utils.get_ticket_data(main_message_id, main_channel_id)
-		if priority == highest_priority:
-			db_utils.insert_or_update_last_user_interaction(main_channel_id, user_tag, int(time.time()))
-			logging.info(f"Updated {msg_data.from_user.id, user_tag} user last interaction.")
-
-
 def ticket_update_time_comparator(ticket):
 	_, _, _, _, _, _, update_time, remind_time = ticket
 	return max(update_time or 0, remind_time or 0)

@@ -5,7 +5,7 @@ from telebot.apihelper import ApiTelegramException
 
 import channel_manager
 import command_utils
-import comment_utils
+from comment_utils import comment_dispatcher
 import config_utils
 import daily_reminder
 import forwarding_utils
@@ -91,7 +91,7 @@ def handle_discussion_message(msg_data: telebot.types.Message):
 	discussion_chat_id = msg_data.chat.id
 
 	if msg_data.reply_to_message:
-		comment_utils.save_comment(bot, msg_data)
+		comment_dispatcher.save_comment(bot, msg_data)
 
 	db_utils.insert_or_update_last_msg_id(discussion_message_id, discussion_chat_id)
 

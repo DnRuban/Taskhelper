@@ -617,6 +617,17 @@ def get_all_users():
 
 
 @db_thread_lock
+def get_channel_user_tags(main_channel_id):
+	sql = "SELECT user_tag FROM users WHERE main_channel_id=(?)"
+	CURSOR.execute(sql, (main_channel_id,))
+	result = CURSOR.fetchall()
+	if result:
+		return [row[0] for row in result]
+	else:
+		return []
+
+
+@db_thread_lock
 def get_next_action_text(main_message_id, main_channel_id):
 	sql = "SELECT current_comment_text FROM next_action_comments WHERE main_channel_id=(?) AND main_message_id=(?)"
 	CURSOR.execute(sql, (main_channel_id, main_message_id,))

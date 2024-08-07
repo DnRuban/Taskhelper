@@ -12,7 +12,6 @@ import db_utils
 import hashtag_utils
 import post_link_utils
 import utils
-from utils import SCHEDULED_DATETIME_FORMAT
 from config_utils import DEFAULT_USER_DATA, HASHTAGS
 
 PRIORITY_TAG = HASHTAGS["PRIORITY"]
@@ -494,7 +493,7 @@ class HashtagData:
 					time_str = "00:00"
 
 			datetime_str = f"{date_str} {time_str}"
-			scheduled_date = datetime.datetime.strptime(datetime_str, SCHEDULED_DATETIME_FORMAT)
+			scheduled_date = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
 			current_timestamp = scheduled_date.timestamp()
 			if not earliest_tag_time:
 				earliest_tag_time = current_timestamp
