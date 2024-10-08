@@ -1,7 +1,27 @@
 import logging
 
-from pyrogram import Client
+from pyrogram import Client, utils
 from config_utils import BOT_TOKEN, APP_API_ID, APP_API_HASH
+
+'''
+This is a fix for get_peer_type in Pyrogram module.
+Original function throws an exception if channel id is less than -1002147483647.
+This fix should be removed after this bug is fixed in Pyrogram module.
+Issue with this bug: https://github.com/pyrogram/pyrogram/issues/1314
+'''
+def get_peer_type_fixed(peer_id: int) -> str:
+	if peer_id < 0:
+		if -999999999999 <= peer_id:
+			return "chat"
+		if -1997852516352 <= peer_id < -1000000000000:
+			return "channel"
+	elif 0 < peer_id <= 0xffffffffff:
+		return "user"
+
+	raise ValueError(f"Peer id invalid: {peer_id}")
+
+# replace original function with fixed version
+utils.get_peer_type = get_peer_type_fixed
 
 app = Client(
 	"pyrogram_bot",
