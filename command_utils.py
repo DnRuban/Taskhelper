@@ -12,6 +12,7 @@ import hashtag_data
 import interval_updating_utils
 import user_utils
 import utils
+from scheduled_messages_utils import scheduled_message_dispatcher
 
 
 def initialize_bot_commands(bot: telebot.TeleBot):
@@ -110,13 +111,19 @@ def handle_set_interval_check(bot: telebot.TeleBot, msg_data: telebot.types.Mess
 
 def handle_set_timezone(bot: telebot.TeleBot, msg_data: telebot.types.Message, arguments: str):
 	try:
-		pytz.timezone(arguments)
+		new_timezone = pytz.timezone(arguments)
 	except pytz.exceptions.UnknownTimeZoneError:
 		bot.send_message(chat_id=msg_data.chat.id, text="Wrong timezone identifier.")
 		return
+
+	current_timezone = pytz.timezone(config_utils.TIMEZONE_NAME)
+	scheduled_message_dispatcher.update_timezone(current_timezone, new_timezone)
+
 	config_utils.TIMEZONE_NAME = arguments
 	bot.send_message(chat_id=msg_data.chat.id, text="Timezone successfully changed.")
 	config_utils.update_config({"TIMEZONE_NAME": config_utils.TIMEZONE_NAME})
+
+	interval_updating_utils.start_interval_updating(bot)
 
 
 def handle_main_channel_change(bot: telebot.TeleBot, msg_data: telebot.types.Message, arguments: str):

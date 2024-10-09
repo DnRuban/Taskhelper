@@ -3,7 +3,6 @@ import datetime
 import logging
 import threading
 import time
-from typing import List
 
 import pytz
 import telebot
@@ -14,7 +13,6 @@ import config_utils
 import db_utils
 import forwarding_utils
 import utils
-from config_utils import TIMEZONE_NAME
 from hashtag_data import HashtagData
 from utils import SCHEDULED_DATETIME_FORMAT
 
@@ -38,7 +36,7 @@ class ScheduledMessageDispatcher:
 			self.main_channel_id = main_channel_id
 			self.send_time = send_time
 
-	def schedule_message(self, bot: telebot.TeleBot, call: telebot.types.CallbackQuery, send_time: int, dt: datetime.datetime):
+	def schedule_message(self, bot: telebot.TeleBot, call: telebot.types.CallbackQuery, send_time: int):
 		message = call.message
 		main_message_id = message.message_id
 		main_channel_id = message.chat.id
@@ -54,7 +52,8 @@ class ScheduledMessageDispatcher:
 				bot.answer_callback_query(callback_query_id=call.id, text="Can't reschedule to this date because there is an earlier date in the text")
 				return
 
-		date_str = dt.strftime(SCHEDULED_DATETIME_FORMAT)
+		send_datetime = datetime.datetime.fromtimestamp(send_time, pytz.timezone(config_utils.TIMEZONE_NAME))
+		date_str = send_datetime.strftime(SCHEDULED_DATETIME_FORMAT)
 
 		if db_utils.is_message_scheduled(main_message_id, main_channel_id):
 			self.update_scheduled_time(main_message_id, main_channel_id, send_time)
@@ -85,7 +84,7 @@ class ScheduledMessageDispatcher:
 	def insert_scheduled_message_info(self, main_message_id, main_channel_id, send_time):
 		scheduled_message_object = self.ScheduledMessage(main_message_id, main_channel_id, send_time)
 		self.__scheduled_messages_list.append(scheduled_message_object)
-		self.__scheduled_messages_list.sort(key=self.scheduled_message_comparison_func)
+		self.sort_scheduled_messages()
 
 	def update_scheduled_time(self, main_message_id, main_channel_id, send_time):
 		db_utils.update_scheduled_message(main_message_id, main_channel_id, send_time)
@@ -93,7 +92,7 @@ class ScheduledMessageDispatcher:
 		for msg in self.__scheduled_messages_list:
 			if msg.main_message_id == main_message_id and msg.main_channel_id == main_channel_id:
 				msg.send_time = send_time
-		self.__scheduled_messages_list.sort(key=self.scheduled_message_comparison_func)
+		self.sort_scheduled_messages()
 
 	def get_scheduled_messages_for_send(self):
 		filtered_messages = []
@@ -110,7 +109,7 @@ class ScheduledMessageDispatcher:
 		for msg in scheduled_messages:
 			main_message_id, main_channel_id, send_time = msg
 			self.insert_scheduled_message_info(main_message_id, main_channel_id, send_time)
-		self.__scheduled_messages_list.sort(key=self.scheduled_message_comparison_func)
+		self.sort_scheduled_messages()
 
 		threading.Thread(target=self.schedule_loop_thread, args=(bot,)).start()
 
@@ -118,7 +117,7 @@ class ScheduledMessageDispatcher:
 		for msg in self.__scheduled_messages_list:
 			if msg.main_message_id == main_message_id and msg.main_channel_id == main_channel_id:
 				self.__scheduled_messages_list.remove(msg)
-		self.__scheduled_messages_list.sort(key=self.scheduled_message_comparison_func)
+		self.sort_scheduled_messages()
 
 	def handle_callback(self, bot: telebot.TeleBot, call: telebot.types.CallbackQuery, current_channel_id: int = None, current_message_id: int = None):
 		callback_type, other_data = utils.parse_callback_str(call.data)
@@ -166,11 +165,11 @@ class ScheduledMessageDispatcher:
 		date, hour, minute = args
 		format_str = "%d.%m.%Y %H:%M"
 		dt = datetime.datetime.strptime(f"{date} {hour}:{minute}", format_str)
-		timezone = pytz.timezone(TIMEZONE_NAME)
+		timezone = pytz.timezone(config_utils.TIMEZONE_NAME)
 		dt = timezone.localize(dt)
 		send_time = int(dt.astimezone(pytz.UTC).timestamp())
 
-		self.schedule_message(bot, call, send_time, dt)
+		self.schedule_message(bot, call, send_time)
 
 	def generate_schedule_button(self):
 		callback_data = utils.create_callback_str(self.CALLBACK_PREFIX, self.__MONTH_CALENDAR_CALLBACK)
@@ -179,7 +178,7 @@ class ScheduledMessageDispatcher:
 		return schedule_button
 
 	def generate_days_buttons(self, date_info=None):
-		timezone = pytz.timezone(TIMEZONE_NAME)
+		timezone = pytz.timezone(config_utils.TIMEZONE_NAME)
 		now = datetime.datetime.now(tz=timezone)
 
 		if date_info:
@@ -308,7 +307,7 @@ class ScheduledMessageDispatcher:
 		datetime_str = hashtag_data.get_scheduled_datetime()
 		dt = datetime.datetime.strptime(datetime_str, SCHEDULED_DATETIME_FORMAT)
 
-		timezone = pytz.timezone(TIMEZONE_NAME)
+		timezone = pytz.timezone(config_utils.TIMEZONE_NAME)
 		dt = timezone.localize(dt)
 		tag_send_time = int(dt.astimezone(pytz.UTC).timestamp())
 
@@ -326,9 +325,20 @@ class ScheduledMessageDispatcher:
 			comment_text = f"Ticket was rescheduled to {datetime_str}."
 			utils.add_comment_to_ticket(bot, msg_data, comment_text)
 
-	@staticmethod
-	def scheduled_message_comparison_func(msg: ScheduledMessage):
-		return msg.send_time
+	def update_timezone(self, current_timezone: datetime.tzinfo, new_timezone: datetime.tzinfo):
+		scheduled_messages = db_utils.get_all_scheduled_messages()
+		for m in scheduled_messages:
+			main_message_id, main_channel_id, send_time = m
+			current_datetime = datetime.datetime.fromtimestamp(send_time, tz=current_timezone)
+			current_datetime_str = current_datetime.strftime(SCHEDULED_DATETIME_FORMAT)
+			new_datetime = datetime.datetime.strptime(current_datetime_str, SCHEDULED_DATETIME_FORMAT)
+			updated_send_time = new_timezone.localize(new_datetime).timestamp()
+			self.update_scheduled_time(main_message_id, main_channel_id, updated_send_time)
+
+	def sort_scheduled_messages(self):
+		comparison_function = lambda m: m.send_time
+		self.__scheduled_messages_list.sort(key=comparison_function)
+
 
 
 scheduled_message_dispatcher = ScheduledMessageDispatcher()
